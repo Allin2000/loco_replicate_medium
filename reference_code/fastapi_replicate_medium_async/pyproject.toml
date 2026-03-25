@@ -1,0 +1,27 @@
+[project]
+name = "fastapi-replicate-medium_async"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "alembic>=1.14.1",
+    "asyncpg>=0.30.0",
+    "fastapi>=0.115.8",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic-settings>=2.9.1",
+    "pyjwt>=2.10.1",
+    "python-slugify==8.0.4",
+    "ruff>=0.9.4",
+    "sqlalchemy>=2.0.37",
+    "structlog>=25.3.0",
+    "uvicorn>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "fastapi-replicate-medium-async",
+]
+
+[tool.uv.sources]
+fastapi-replicate-medium-async = { workspace = true }
