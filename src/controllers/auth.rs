@@ -298,20 +298,13 @@ async fn resend_verification_email(
 
 pub fn routes() -> Routes {
     Routes::new()
-        .prefix("/api/auth")
-        .add("/register", post(register))
+        .prefix("/api")
+        .add("/users", post(register))
+        .add("/users/login", post(login))
         .add("/verify/{token}", get(verify))
-        .add("/login", post(login))
         .add("/forgot", post(forgot))
         .add("/reset", post(reset))
-        .add("/current", get(current))
         .add("/magic-link", post(magic_link))
         .add("/magic-link/{token}", get(magic_link_verify))
         .add("/resend-verification-mail", post(resend_verification_email))
-        .merge(
-            Routes::new()
-                .prefix("/api")
-                .add("/users", post(register))
-                .add("/users/login", post(login)),
-        )
 }

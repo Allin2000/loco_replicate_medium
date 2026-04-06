@@ -13,8 +13,6 @@ impl MigrationTrait for Migration {
             ("id", ColType::PkAuto),
             
             ("body", ColType::Text),
-            ("created_at", ColType::TimestampWithTimeZone),
-            ("updated_at", ColType::TimestampWithTimeZoneNull),
             ],
             &[
             ("article", "article_id"),

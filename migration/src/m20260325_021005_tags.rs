@@ -7,7 +7,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, m: &SchemaManager) -> Result<(), DbErr> {
-        create_table(m, "tags",
+        create_table_without_timestamps(m, "tags",
             &[
             
             ("id", ColType::PkAuto),
