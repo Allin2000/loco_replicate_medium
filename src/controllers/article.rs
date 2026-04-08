@@ -3,21 +3,27 @@
 #![allow(clippy::unnecessary_struct_initialization)]
 #![allow(clippy::unused_async)]
 
-use axum::http::StatusCode;
+use axum::{http::StatusCode, http::HeaderMap};
 use loco_rs::{controller::ErrorDetail, prelude::*};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
+};
 use serde::Serialize;
 use serde_json;
 use chrono::Utc;
 
 use crate::dto::article::{
-    ArticleListQuery, CreateArticleEnvelope, TagListIntent,
-    UpdateArticleEnvelope,
+    ArticleListQuery, CreateArticleEnvelope, TagListIntent, UpdateArticleEnvelope,
 };
 use crate::models::_entities::{
-    articles, article_tags, favorites, followers, tags, users,
+    article_tags, articles, favorites, followers, tags, users,
 };
 use crate::models::_entities::articles::{ActiveModel, Entity, Model};
+
+// ---------------------------------------------------------------------------
+// Response types
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize)]
 pub struct ArticleAuthor {
@@ -53,18 +59,36 @@ pub struct MultipleArticlesResponse {
     pub articlesCount: usize,
 }
 
-// ====================== 辅助函数 ======================
+// ---------------------------------------------------------------------------
+// Optional auth: parse Bearer token from headers without requiring login
+// ---------------------------------------------------------------------------
+
+/// Try to resolve the current user from an optional `Authorization: Bearer <token>` header.
+/// Returns `None` if header is absent, malformed, or token is invalid.
+async fn optional_user_id(ctx: &AppContext, headers: &HeaderMap) -> Option<i32> {
+    let token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))?;
+
+    let jwt_secret = ctx.config.get_jwt_config().ok()?;
+    let claims = loco_rs::auth::jwt::JWT::new(&jwt_secret.secret)
+        .validate(token)
+        .ok()?;
+
+    users::Model::find_by_pid(&ctx.db, &claims.claims.pid)
+        .await
+        .ok()
+        .map(|u| u.id)
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 async fn load_by_slug(ctx: &AppContext, slug: &str) -> Result<Model> {
     Entity::find()
         .filter(articles::Column::Slug.eq(slug))
-        .one(&ctx.db)
-        .await?
-        .ok_or_else(|| Error::NotFound)
-}
-
-async fn load_author(ctx: &AppContext, author_id: i32) -> Result<users::Model> {
-    users::Entity::find_by_id(author_id)
         .one(&ctx.db)
         .await?
         .ok_or_else(|| Error::NotFound)
@@ -76,16 +100,14 @@ async fn load_tags(ctx: &AppContext, article_id: i32) -> Result<Vec<String>> {
         .all(&ctx.db)
         .await?;
 
-    let mut tags_data = vec![];
+    let mut names = vec![];
     for link in links {
         if let Some(tag) = tags::Entity::find_by_id(link.tag_id).one(&ctx.db).await? {
-            tags_data.push(tag.name);
+            names.push(tag.name);
         }
     }
-    Ok(tags_data)
+    Ok(names)
 }
-
-
 
 async fn handle_tags_update(
     ctx: &AppContext,
@@ -105,13 +127,11 @@ async fn handle_tags_update(
         )),
 
         TagListIntent::Replace(new_tags) => {
-            // 删除旧关联
             article_tags::Entity::delete_many()
                 .filter(article_tags::Column::ArticleId.eq(article_id))
                 .exec(&ctx.db)
                 .await?;
 
-            // 插入新标签（支持空数组）
             for tag_name in new_tags {
                 let tag = if let Some(t) = tags::Entity::find()
                     .filter(tags::Column::Name.eq(&tag_name))
@@ -120,21 +140,21 @@ async fn handle_tags_update(
                 {
                     t
                 } else {
-                    let now = Utc::now();
                     let new_tag = tags::ActiveModel {
                         name: Set(tag_name.clone()),
-                        created_at: Set(now.into()),
+                        created_at: Set(Utc::now().into()),
                         ..Default::default()
                     };
                     new_tag.insert(&ctx.db).await?
                 };
 
-                let link = article_tags::ActiveModel {
+                article_tags::ActiveModel {
                     article_id: Set(article_id),
                     tag_id: Set(tag.id),
                     ..Default::default()
-                };
-                link.insert(&ctx.db).await?;
+                }
+                .insert(&ctx.db)
+                .await?;
             }
             Ok(())
         }
@@ -147,10 +167,14 @@ async fn build_article_data(
     current_user_id: Option<i32>,
     include_body: bool,
 ) -> Result<ArticleData> {
-    let author_user = load_author(ctx, article.author_id).await?;
-    let tagList = load_tags(ctx, article.id).await?;
+    let author_user = users::Entity::find_by_id(article.author_id)
+        .one(&ctx.db)
+        .await?
+        .ok_or_else(|| Error::NotFound)?;
 
-    let favorites_count: u64 = favorites::Entity::find()
+    let tag_list = load_tags(ctx, article.id).await?;
+
+    let favorites_count = favorites::Entity::find()
         .filter(favorites::Column::ArticleId.eq(article.id))
         .count(&ctx.db)
         .await?;
@@ -169,11 +193,18 @@ async fn build_article_data(
         false
     };
 
-    let author = ArticleAuthor {
-        username: author_user.name.clone(),
-        bio: author_user.bio.clone(),
-        image: author_user.image.clone(),
-        following: false,
+    let following = if let Some(uid) = current_user_id {
+        followers::Entity::find()
+            .filter(
+                followers::Column::FollowerId
+                    .eq(uid)
+                    .and(followers::Column::FollowingId.eq(article.author_id)),
+            )
+            .one(&ctx.db)
+            .await?
+            .is_some()
+    } else {
+        false
     };
 
     Ok(ArticleData {
@@ -181,119 +212,146 @@ async fn build_article_data(
         title: article.title.clone(),
         description: article.description.clone(),
         body: if include_body { Some(article.body.clone()) } else { None },
-        tagList,
+        tagList: tag_list,
         createdAt: article.created_at.to_rfc3339(),
         updatedAt: article.updated_at.to_rfc3339(),
         favorited,
         favoritesCount: favorites_count as i64,
-        author,
+        author: ArticleAuthor {
+            username: author_user.name.clone(),
+            bio: author_user.bio.clone(),
+            image: author_user.image.clone(),
+            following,
+        },
     })
 }
 
-// ====================== 控制器 ======================
+// ---------------------------------------------------------------------------
+// Handlers
+// ---------------------------------------------------------------------------
 
+/// GET /api/articles — list with optional filters, auth optional
 #[debug_handler]
 pub async fn list_global(
     State(ctx): State<AppContext>,
+    headers: HeaderMap,
     Query(query): Query<ArticleListQuery>,
 ) -> Result<Response> {
+    let current_user_id = optional_user_id(&ctx, &headers).await;
+
     let mut q = Entity::find().order_by_desc(articles::Column::CreatedAt);
 
     if let Some(author_name) = query.author {
-        if let Some(user) = users::Entity::find()
+        match users::Entity::find()
             .filter(users::Column::Name.eq(author_name))
             .one(&ctx.db)
             .await?
         {
-            q = q.filter(articles::Column::AuthorId.eq(user.id));
-        } else {
-            return format::json(MultipleArticlesResponse {
-                articles: vec![],
-                articlesCount: 0,
-            });
+            Some(user) => q = q.filter(articles::Column::AuthorId.eq(user.id)),
+            None => {
+                return format::json(MultipleArticlesResponse {
+                    articles: vec![],
+                    articlesCount: 0,
+                })
+            }
         }
     }
 
     if let Some(tag_name) = query.tag {
-        if let Some(tag) = tags::Entity::find()
+        match tags::Entity::find()
             .filter(tags::Column::Name.eq(tag_name))
             .one(&ctx.db)
             .await?
         {
-            let article_ids: Vec<i32> = article_tags::Entity::find()
-                .filter(article_tags::Column::TagId.eq(tag.id))
-                .all(&ctx.db)
-                .await?
-                .into_iter()
-                .map(|at| at.article_id)
-                .collect();
-
-            if article_ids.is_empty() {
+            Some(tag) => {
+                let ids: Vec<i32> = article_tags::Entity::find()
+                    .filter(article_tags::Column::TagId.eq(tag.id))
+                    .all(&ctx.db)
+                    .await?
+                    .into_iter()
+                    .map(|at| at.article_id)
+                    .collect();
+                if ids.is_empty() {
+                    return format::json(MultipleArticlesResponse {
+                        articles: vec![],
+                        articlesCount: 0,
+                    });
+                }
+                q = q.filter(articles::Column::Id.is_in(ids));
+            }
+            None => {
                 return format::json(MultipleArticlesResponse {
                     articles: vec![],
                     articlesCount: 0,
-                });
+                })
             }
-            q = q.filter(articles::Column::Id.is_in(article_ids));
-        } else {
-            return format::json(MultipleArticlesResponse {
-                articles: vec![],
-                articlesCount: 0,
-            });
         }
     }
 
     if let Some(fav_by) = query.favorited {
-        if let Some(user) = users::Entity::find()
+        match users::Entity::find()
             .filter(users::Column::Name.eq(fav_by))
             .one(&ctx.db)
             .await?
         {
-            let article_ids: Vec<i32> = favorites::Entity::find()
-                .filter(favorites::Column::UserId.eq(user.id))
-                .all(&ctx.db)
-                .await?
-                .into_iter()
-                .map(|f| f.article_id)
-                .collect();
-
-            if article_ids.is_empty() {
+            Some(user) => {
+                let ids: Vec<i32> = favorites::Entity::find()
+                    .filter(favorites::Column::UserId.eq(user.id))
+                    .all(&ctx.db)
+                    .await?
+                    .into_iter()
+                    .map(|f| f.article_id)
+                    .collect();
+                if ids.is_empty() {
+                    return format::json(MultipleArticlesResponse {
+                        articles: vec![],
+                        articlesCount: 0,
+                    });
+                }
+                q = q.filter(articles::Column::Id.is_in(ids));
+            }
+            None => {
                 return format::json(MultipleArticlesResponse {
                     articles: vec![],
                     articlesCount: 0,
-                });
+                })
             }
-            q = q.filter(articles::Column::Id.is_in(article_ids));
-        } else {
-            return format::json(MultipleArticlesResponse {
-                articles: vec![],
-                articlesCount: 0,
-            });
         }
+    }
+
+    // Count total before pagination (RealWorld spec: articlesCount = total, not page size)
+    let total = q.clone().count(&ctx.db).await?;
+
+    if let Some(offset) = query.offset {
+        q = q.offset(offset);
+    }
+    if let Some(limit) = query.limit {
+        q = q.limit(limit);
     }
 
     let articles_list = q.all(&ctx.db).await?;
     let mut results = vec![];
-
     for article in articles_list {
-        results.push(build_article_data(&ctx, &article, None, false).await?);
+        results.push(build_article_data(&ctx, &article, current_user_id, false).await?);
     }
 
-    let count = results.len();
     format::json(MultipleArticlesResponse {
         articles: results,
-        articlesCount: count,
+        articlesCount: total as usize,
     })
 }
 
+/// GET /api/articles/feed — from followed authors, auth required
 #[debug_handler]
-pub async fn list(State(ctx): State<AppContext>) -> Result<Response> {
-    list_global(State(ctx), Query(ArticleListQuery::default())).await
-}
-
-#[debug_handler]
-pub async fn list_feed(State(ctx): State<AppContext>, auth: auth::JWT) -> Result<Response> {
+pub async fn list_feed(
+    State(ctx): State<AppContext>,
+    headers: HeaderMap,
+    auth: auth::JWT,
+    Query(query): Query<ArticleListQuery>,
+) -> Result<Response> {
     let current_user = users::Model::find_by_pid(&ctx.db, &auth.claims.pid).await?;
+    let _ = headers; // headers available if needed
+
     let following_ids: Vec<i32> = followers::Entity::find()
         .filter(followers::Column::FollowerId.eq(current_user.id))
         .all(&ctx.db)
@@ -302,28 +360,55 @@ pub async fn list_feed(State(ctx): State<AppContext>, auth: auth::JWT) -> Result
         .map(|f| f.following_id)
         .collect();
 
-    let articles_list = if following_ids.is_empty() {
-        vec![]
-    } else {
-        Entity::find()
-            .filter(articles::Column::AuthorId.is_in(following_ids))
-            .order_by_desc(articles::Column::CreatedAt)
-            .all(&ctx.db)
-            .await?
-    };
-
-    let mut results = vec![];
-    for article in articles_list {
-        results.push(build_article_data(&ctx, &article, Some(current_user.id), false).await?);
+    if following_ids.is_empty() {
+        return format::json(MultipleArticlesResponse {
+            articles: vec![],
+            articlesCount: 0,
+        });
     }
 
-    let count = results.len();
+    let mut q = Entity::find()
+        .filter(articles::Column::AuthorId.is_in(following_ids))
+        .order_by_desc(articles::Column::CreatedAt);
+
+    // Count total before pagination
+    let total = q.clone().count(&ctx.db).await?;
+
+    if let Some(offset) = query.offset {
+        q = q.offset(offset);
+    }
+    if let Some(limit) = query.limit {
+        q = q.limit(limit);
+    }
+
+    let articles_list = q.all(&ctx.db).await?;
+    let mut results = vec![];
+    for article in articles_list {
+        results.push(
+            build_article_data(&ctx, &article, Some(current_user.id), false).await?,
+        );
+    }
+
     format::json(MultipleArticlesResponse {
         articles: results,
-        articlesCount: count,
+        articlesCount: total as usize,
     })
 }
 
+/// GET /api/articles/:slug — auth optional
+#[debug_handler]
+pub async fn get_one_by_slug(
+    Path(slug): Path<String>,
+    State(ctx): State<AppContext>,
+    headers: HeaderMap,
+) -> Result<Response> {
+    let current_user_id = optional_user_id(&ctx, &headers).await;
+    let article = load_by_slug(&ctx, &slug).await?;
+    let data = build_article_data(&ctx, &article, current_user_id, true).await?;
+    format::json(SingleArticleResponse { article: data })
+}
+
+/// POST /api/articles
 #[debug_handler]
 pub async fn add(
     State(ctx): State<AppContext>,
@@ -346,13 +431,16 @@ pub async fn add(
 
     let mut item: ActiveModel = Default::default();
     item.title = Set(params.title.clone());
-    item.slug = Set(params.title.to_lowercase().replace(' ', "-").replace(['.', ','], ""));
+    item.slug = Set(params
+        .title
+        .to_lowercase()
+        .replace(' ', "-")
+        .replace(['.', ','], ""));
     item.description = Set(Some(params.description));
     item.body = Set(params.body);
     item.author_id = Set(current_user.id);
 
     let inserted = item.insert(&ctx.db).await?;
-
     handle_tags_update(&ctx, inserted.id, TagListIntent::Replace(params.tag_list)).await?;
 
     let data = build_article_data(&ctx, &inserted, Some(current_user.id), true).await?;
@@ -361,8 +449,7 @@ pub async fn add(
         .json(SingleArticleResponse { article: data })
 }
 
-
-
+/// PUT/PATCH /api/articles/:slug
 #[debug_handler]
 pub async fn update(
     Path(slug): Path<String>,
@@ -385,8 +472,20 @@ pub async fn update(
     }
 
     let req = envelope.article;
-    let mut active: ActiveModel = item.into_active_model();
 
+    // Validate before any DB writes
+    if matches!(req.tag_list.intent(), TagListIntent::Null) {
+        return Err(Error::CustomError(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            ErrorDetail {
+                error: None,
+                description: None,
+                errors: Some(serde_json::json!({"tagList": ["can't be null"]})),
+            },
+        ));
+    }
+
+    let mut active: ActiveModel = item.into_active_model();
     req.apply_scalars(&mut active);
     let updated = active.update(&ctx.db).await?;
 
@@ -396,19 +495,7 @@ pub async fn update(
     format::json(SingleArticleResponse { article: data })
 }
 
-#[debug_handler]
-pub async fn get_one_by_slug(
-    Path(slug): Path<String>,
-    State(ctx): State<AppContext>,
-) -> Result<Response> {
-    let article = load_by_slug(&ctx, &slug).await?;
-    let data = build_article_data(&ctx, &article, None, true).await?;
-    format::json(SingleArticleResponse { article: data })
-}
-
-
-
-
+/// DELETE /api/articles/:slug
 #[debug_handler]
 pub async fn remove(
     Path(slug): Path<String>,
@@ -433,6 +520,7 @@ pub async fn remove(
     format::render().status(StatusCode::NO_CONTENT).empty()
 }
 
+/// POST /api/articles/:slug/favorite
 #[debug_handler]
 pub async fn favorite_article(
     Path(slug): Path<String>,
@@ -453,12 +541,13 @@ pub async fn favorite_article(
         .is_some();
 
     if !exists {
-        let fav = favorites::ActiveModel {
+        favorites::ActiveModel {
             user_id: Set(user.id),
             article_id: Set(article.id),
             ..Default::default()
-        };
-        fav.insert(&ctx.db).await?;
+        }
+        .insert(&ctx.db)
+        .await?;
     }
 
     let reloaded = load_by_slug(&ctx, &slug).await?;
@@ -466,6 +555,7 @@ pub async fn favorite_article(
     format::json(SingleArticleResponse { article: data })
 }
 
+/// DELETE /api/articles/:slug/favorite
 #[debug_handler]
 pub async fn unfavorite_article(
     Path(slug): Path<String>,
@@ -492,10 +582,12 @@ pub async fn unfavorite_article(
     format::json(SingleArticleResponse { article: data })
 }
 
-// ====================== 路由 ======================
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
 pub fn routes() -> Routes {
     Routes::new()
-        .prefix("api/articles")
+        .prefix("/api/articles")
         .add("/feed", get(list_feed))
         .add("/", get(list_global))
         .add("/", post(add))

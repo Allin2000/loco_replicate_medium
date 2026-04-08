@@ -1,4 +1,5 @@
 // dto/article.rs
+
 use loco_rs::prelude::*;
 use sea_orm::ActiveValue::Set;
 use serde::{Deserialize, Serialize};
@@ -9,9 +10,9 @@ use crate::models::_entities::articles::ActiveModel;
 // TagList field — distinguishes absent / null / [] / [...]
 //
 // Option<Option<Vec<String>>>:
-//   None              → absent from JSON → preserve existing tags
-//   Some(None)        → `null` in JSON   → REJECT with 422
-//   Some(Some(vec))   → array            → replace tags (may be empty)
+//   None              -> absent from JSON -> preserve existing tags
+//   Some(None)        -> `null` in JSON   -> REJECT with 422
+//   Some(Some(vec))   -> array            -> replace tags (may be empty)
 // ---------------------------------------------------------------------------
 #[derive(Clone, Debug, Serialize)]
 pub struct TagListField(Option<Option<Vec<String>>>);
@@ -25,17 +26,13 @@ impl<'de> serde::Deserialize<'de> for TagListField {
 
 impl Default for TagListField {
     fn default() -> Self {
-        TagListField(None) // absent → do nothing
+        TagListField(None)
     }
 }
 
-/// What the caller wants to do with tags:
 pub enum TagListIntent {
-    /// Field was absent — preserve current tags.
     Preserve,
-    /// Field was `null` — caller error, must reject.
     Null,
-    /// Replace tags with this list (may be empty).
     Replace(Vec<String>),
 }
 
@@ -51,7 +48,6 @@ impl TagListField {
 
 // ---------------------------------------------------------------------------
 // Create request DTO
-// All fields required for creation.
 // ---------------------------------------------------------------------------
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CreateArticleRequest {
@@ -64,7 +60,6 @@ pub struct CreateArticleRequest {
 
 // ---------------------------------------------------------------------------
 // Update request DTO
-// All fields optional; tagList has special null-rejection semantics.
 // ---------------------------------------------------------------------------
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UpdateArticleRequest {
@@ -76,11 +71,9 @@ pub struct UpdateArticleRequest {
 }
 
 impl UpdateArticleRequest {
-    /// Apply non-absent scalar fields onto the active model.
-    /// Tag handling is done separately in the controller (requires DB access).
     pub fn apply_scalars(&self, item: &mut ActiveModel) {
         if let Some(title) = &self.title {
-            item.slug = Set(title.to_lowercase().replace(' ', "-").replace("..", ""));
+            item.slug = Set(title.to_lowercase().replace(' ', "-").replace(['.', ','], ""));
             item.title = Set(title.clone());
         }
         if let Some(description) = &self.description {
@@ -93,7 +86,7 @@ impl UpdateArticleRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Envelopes  { "article": <T> }
+// Envelopes
 // ---------------------------------------------------------------------------
 #[derive(Debug, Deserialize)]
 pub struct CreateArticleEnvelope {
@@ -106,11 +99,15 @@ pub struct UpdateArticleEnvelope {
 }
 
 // ---------------------------------------------------------------------------
-// Query params for GET /api/articles
+// Query params for GET /api/articles and /api/articles/feed
 // ---------------------------------------------------------------------------
 #[derive(Debug, Deserialize, Default)]
 pub struct ArticleListQuery {
     pub tag: Option<String>,
     pub author: Option<String>,
     pub favorited: Option<String>,
+    /// Maximum number of articles to return
+    pub limit: Option<u64>,
+    /// Number of articles to skip
+    pub offset: Option<u64>,
 }
