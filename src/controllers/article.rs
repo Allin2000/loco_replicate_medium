@@ -407,6 +407,8 @@ pub async fn get_one_by_slug(
 }
 
 
+
+
 #[debug_handler]
 pub async fn remove(
     Path(slug): Path<String>,
