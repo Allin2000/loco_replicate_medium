@@ -8,9 +8,9 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        if !insert && self.updated_at.is_unchanged() {
+        if !insert && self.created_at.is_unchanged() {
             let mut this = self;
-            this.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now().into());
+            this.created_at = sea_orm::ActiveValue::Set(chrono::Utc::now().into());
             Ok(this)
         } else {
             Ok(self)

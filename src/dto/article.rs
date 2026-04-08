@@ -1,3 +1,4 @@
+// dto/article.rs
 use loco_rs::prelude::*;
 use sea_orm::ActiveValue::Set;
 use serde::{Deserialize, Serialize};
