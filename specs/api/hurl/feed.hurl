@@ -26,7 +26,7 @@ celeb_token: jsonpath "$.user.token"
 
 # Feed for new user returns empty
 GET {{host}}/api/articles/feed
-Authorization: Token {{main_token}}
+Authorization: Bearer {{main_token}}
 HTTP 200
 [Asserts]
 jsonpath "$.articlesCount" == 0
@@ -34,14 +34,14 @@ jsonpath "$.articles" count == 0
 
 # Main follows celeb
 POST {{host}}/api/profiles/feedc_{{uid}}/follow
-Authorization: Token {{main_token}}
+Authorization: Bearer {{main_token}}
 HTTP 200
 [Asserts]
 jsonpath "$.profile.following" == true
 
 # Celeb creates article 1
 POST {{host}}/api/articles
-Authorization: Token {{celeb_token}}
+Authorization: Bearer {{celeb_token}}
 {
   "article": {
     "title": "Feed Article 1 {{uid}}",
@@ -55,7 +55,7 @@ slug1: jsonpath "$.article.slug"
 
 # Celeb creates article 2
 POST {{host}}/api/articles
-Authorization: Token {{celeb_token}}
+Authorization: Bearer {{celeb_token}}
 {
   "article": {
     "title": "Feed Article 2 {{uid}}",
@@ -69,7 +69,7 @@ slug2: jsonpath "$.article.slug"
 
 # Main checks feed
 GET {{host}}/api/articles/feed
-Authorization: Token {{main_token}}
+Authorization: Bearer {{main_token}}
 HTTP 200
 [Asserts]
 jsonpath "$.articles" isList
@@ -89,7 +89,7 @@ jsonpath "$.articles[0].author.username" == "feedc_{{uid}}"
 
 # Feed with limit=1
 GET {{host}}/api/articles/feed?limit=1
-Authorization: Token {{main_token}}
+Authorization: Bearer {{main_token}}
 HTTP 200
 [Asserts]
 jsonpath "$.articles" count == 1
@@ -108,7 +108,7 @@ jsonpath "$.articles[0].author.following" == true
 
 # Feed with limit=1&offset=1
 GET {{host}}/api/articles/feed?limit=1&offset=1
-Authorization: Token {{main_token}}
+Authorization: Bearer {{main_token}}
 HTTP 200
 [Asserts]
 jsonpath "$.articles" count == 1
@@ -116,14 +116,14 @@ jsonpath "$.articlesCount" == 2
 
 # Cleanup: delete articles
 DELETE {{host}}/api/articles/{{slug1}}
-Authorization: Token {{celeb_token}}
+Authorization: Bearer {{celeb_token}}
 HTTP 204
 
 DELETE {{host}}/api/articles/{{slug2}}
-Authorization: Token {{celeb_token}}
+Authorization: Bearer {{celeb_token}}
 HTTP 204
 
 # Cleanup: unfollow
 DELETE {{host}}/api/profiles/feedc_{{uid}}/follow
-Authorization: Token {{main_token}}
+Authorization: Bearer {{main_token}}
 HTTP 200

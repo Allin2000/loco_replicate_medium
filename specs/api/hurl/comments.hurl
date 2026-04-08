@@ -13,7 +13,7 @@ token: jsonpath "$.user.token"
 
 # Setup: Create article
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Comment Article {{uid}}",
@@ -27,7 +27,7 @@ slug: jsonpath "$.article.slug"
 
 # Create comment
 POST {{host}}/api/articles/{{slug}}/comments
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "comment": {
     "body": "Test comment body"
@@ -45,7 +45,7 @@ comment_id: jsonpath "$.comment.id"
 
 # List comments
 GET {{host}}/api/articles/{{slug}}/comments
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.comments" isList
@@ -70,7 +70,7 @@ jsonpath "$.comments[0].author.username" == "cmt_{{uid}}"
 
 # Delete comment
 DELETE {{host}}/api/articles/{{slug}}/comments/{{comment_id}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204
 
 # Verify deletion
@@ -81,7 +81,7 @@ jsonpath "$.comments" count == 0
 
 # Selective deletion: create two comments, delete one, verify the other remains
 POST {{host}}/api/articles/{{slug}}/comments
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "comment": {
     "body": "First comment"
@@ -92,7 +92,7 @@ HTTP 201
 first_comment_id: jsonpath "$.comment.id"
 
 POST {{host}}/api/articles/{{slug}}/comments
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "comment": {
     "body": "Second comment"
@@ -108,7 +108,7 @@ jsonpath "$.comments" count == 2
 
 # Delete the first comment
 DELETE {{host}}/api/articles/{{slug}}/comments/{{first_comment_id}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204
 
 # Verify only the second comment remains
@@ -120,5 +120,5 @@ jsonpath "$.comments[0].body" == "Second comment"
 
 # Cleanup
 DELETE {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204

@@ -39,7 +39,7 @@ token: jsonpath "$.user.token"
 
 # Get current user
 GET {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.username" == "auth_{{uid}}"
@@ -51,7 +51,7 @@ jsonpath "$.user.token" not isEmpty
 
 # Update user
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "bio": "Updated bio"
@@ -68,7 +68,7 @@ jsonpath "$.user.token" not isEmpty
 
 # Verify update persisted
 GET {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.username" == "auth_{{uid}}"
@@ -80,7 +80,7 @@ jsonpath "$.user.token" not isEmpty
 
 # Update user bio to empty string - should normalize to null
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "bio": ""
@@ -92,14 +92,14 @@ jsonpath "$.user.bio" == null
 
 # Verify empty string normalization persisted
 GET {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.bio" == null
 
 # Restore bio then set to null
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "bio": "Temporary bio"
@@ -111,7 +111,7 @@ jsonpath "$.user.bio" == "Temporary bio"
 
 # Update user bio to null - should accept for nullable field
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "bio": null
@@ -123,14 +123,14 @@ jsonpath "$.user.bio" == null
 
 # Verify null bio persisted
 GET {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.bio" == null
 
 # Restore bio
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "bio": "Updated bio"
@@ -147,7 +147,7 @@ jsonpath "$.user.token" not isEmpty
 
 # Update user image
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "image": "https://example.com/photo.jpg"
@@ -159,14 +159,14 @@ jsonpath "$.user.image" == "https://example.com/photo.jpg"
 
 # Verify image update persisted
 GET {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.image" == "https://example.com/photo.jpg"
 
 # Update image to empty string - should normalize to null
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "image": ""
@@ -178,14 +178,14 @@ jsonpath "$.user.image" == null
 
 # Verify image empty string normalization persisted
 GET {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.image" == null
 
 # Set image then update to null - should accept for nullable field
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "image": "https://example.com/temp.jpg"
@@ -196,7 +196,7 @@ HTTP 200
 jsonpath "$.user.image" == "https://example.com/temp.jpg"
 
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "image": null
@@ -208,14 +208,14 @@ jsonpath "$.user.image" == null
 
 # Verify null image persisted
 GET {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.image" == null
 
 # Update username and email
 PUT {{host}}/api/user
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "user": {
     "username": "auth_{{uid}}_upd",
@@ -235,7 +235,7 @@ updated_token: jsonpath "$.user.token"
 
 # Verify username/email update persisted
 GET {{host}}/api/user
-Authorization: Token {{updated_token}}
+Authorization: Bearer {{updated_token}}
 HTTP 200
 [Asserts]
 jsonpath "$.user.username" == "auth_{{uid}}_upd"

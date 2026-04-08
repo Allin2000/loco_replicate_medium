@@ -13,7 +13,7 @@ token: jsonpath "$.user.token"
 
 # Create article with tags
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Test Article {{uid}}",
@@ -80,7 +80,7 @@ jsonpath "$.articles[0].author.username" == "art_{{uid}}"
 
 # List all articles with auth
 GET {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.articles" isList
@@ -99,7 +99,7 @@ jsonpath "$.articles[0].author.username" isString
 
 # List by author with auth
 GET {{host}}/api/articles?author=art_{{uid}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.articles" isList
@@ -159,7 +159,7 @@ jsonpath "$.article.author.username" == "art_{{uid}}"
 
 # Update article body
 PUT {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "body": "Updated body content"
@@ -201,7 +201,7 @@ jsonpath "$.article.author.username" == "art_{{uid}}"
 
 # Update article without tagList: tags should be preserved
 PUT {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "body": "Body without touching tags"
@@ -216,7 +216,7 @@ jsonpath "$.article.tagList" contains "t_{{uid}}"
 
 # Update article: remove all tags with empty array
 PUT {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "tagList": []
@@ -236,7 +236,7 @@ jsonpath "$.article.tagList" count == 0
 
 # Update article: tagList null should be rejected
 PUT {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "tagList": null
@@ -246,7 +246,7 @@ HTTP 422
 
 # Delete article
 DELETE {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204
 
 # Verify deletion

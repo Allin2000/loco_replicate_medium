@@ -33,7 +33,7 @@ jsonpath "$.profile.following" == false
 
 # Get profile with auth
 GET {{host}}/api/profiles/celeb_{{uid}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.profile.username" == "celeb_{{uid}}"
@@ -43,7 +43,7 @@ jsonpath "$.profile.following" == false
 
 # Follow profile
 POST {{host}}/api/profiles/celeb_{{uid}}/follow
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.profile.username" == "celeb_{{uid}}"
@@ -53,7 +53,7 @@ jsonpath "$.profile.following" == true
 
 # Unfollow profile
 DELETE {{host}}/api/profiles/celeb_{{uid}}/follow
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.profile.username" == "celeb_{{uid}}"
@@ -63,7 +63,7 @@ jsonpath "$.profile.following" == false
 
 # Verify unfollow persisted
 GET {{host}}/api/profiles/celeb_{{uid}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.profile.username" == "celeb_{{uid}}"

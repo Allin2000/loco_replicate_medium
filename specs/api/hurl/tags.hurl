@@ -13,7 +13,7 @@ token: jsonpath "$.user.token"
 
 # Setup: Create article with tags
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Tag Article {{uid}}",
@@ -39,5 +39,5 @@ jsonpath "$.tags[1]" isString
 
 # Cleanup
 DELETE {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204

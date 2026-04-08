@@ -26,7 +26,7 @@ token_b: jsonpath "$.user.token"
 
 # User A creates article
 POST {{host}}/api/articles
-Authorization: Token {{token_a}}
+Authorization: Bearer {{token_a}}
 {
   "article": {
     "title": "Authz Article {{uid}}",
@@ -40,14 +40,14 @@ slug: jsonpath "$.article.slug"
 
 # User B tries to delete -> 403
 DELETE {{host}}/api/articles/{{slug}}
-Authorization: Token {{token_b}}
+Authorization: Bearer {{token_b}}
 HTTP 403
 [Asserts]
 jsonpath "$.errors.article[0]" == "forbidden"
 
 # User B tries to update -> 403
 PUT {{host}}/api/articles/{{slug}}
-Authorization: Token {{token_b}}
+Authorization: Bearer {{token_b}}
 {
   "article": {
     "body": "hijacked"
@@ -59,7 +59,7 @@ jsonpath "$.errors.article[0]" == "forbidden"
 
 # User A creates a comment on the article
 POST {{host}}/api/articles/{{slug}}/comments
-Authorization: Token {{token_a}}
+Authorization: Bearer {{token_a}}
 {
   "comment": {
     "body": "A's comment"
@@ -71,7 +71,7 @@ comment_id: jsonpath "$.comment.id"
 
 # User B tries to delete A's comment -> 403
 DELETE {{host}}/api/articles/{{slug}}/comments/{{comment_id}}
-Authorization: Token {{token_b}}
+Authorization: Bearer {{token_b}}
 HTTP 403
 [Asserts]
 jsonpath "$.errors.comment[0]" == "forbidden"
@@ -85,5 +85,5 @@ jsonpath "$.comments[0].body" == "A's comment"
 
 # Cleanup: User A deletes article
 DELETE {{host}}/api/articles/{{slug}}
-Authorization: Token {{token_a}}
+Authorization: Bearer {{token_a}}
 HTTP 204

@@ -13,7 +13,7 @@ token: jsonpath "$.user.token"
 
 # Setup: Create article
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Favorite Article {{uid}}",
@@ -27,7 +27,7 @@ slug: jsonpath "$.article.slug"
 
 # Favorite article
 POST {{host}}/api/articles/{{slug}}/favorite
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.article.title" isString
@@ -43,7 +43,7 @@ jsonpath "$.article.author.username" == "fav_{{uid}}"
 
 # Verify favorite persists
 GET {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.article.title" isString
@@ -77,7 +77,7 @@ jsonpath "$.articles[0].favoritesCount" >= 1
 
 # Articles filtered by favorited username with auth
 GET {{host}}/api/articles?favorited=fav_{{uid}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.articles" isList
@@ -96,7 +96,7 @@ jsonpath "$.articles[0].favoritesCount" >= 1
 
 # Unfavorite article
 DELETE {{host}}/api/articles/{{slug}}/favorite
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.article.title" isString
@@ -112,7 +112,7 @@ jsonpath "$.article.author.username" == "fav_{{uid}}"
 
 # Verify unfavorite persists
 GET {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 jsonpath "$.article.title" isString
@@ -128,5 +128,5 @@ jsonpath "$.article.author.username" == "fav_{{uid}}"
 
 # Cleanup
 DELETE {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204

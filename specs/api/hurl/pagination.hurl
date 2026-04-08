@@ -13,7 +13,7 @@ token: jsonpath "$.user.token"
 
 # Create article 1
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Pagination 1 {{uid}}",
@@ -27,7 +27,7 @@ slug1: jsonpath "$.article.slug"
 
 # Create article 2
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Pagination 2 {{uid}}",
@@ -60,9 +60,9 @@ jsonpath "$.articles[0].slug" == "{{slug1}}"
 
 # Cleanup
 DELETE {{host}}/api/articles/{{slug1}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204
 
 DELETE {{host}}/api/articles/{{slug2}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204

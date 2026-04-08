@@ -1,3 +1,5 @@
+// views/auth.rs
+
 use serde::{Deserialize, Serialize};
 
 use crate::models::_entities::users;

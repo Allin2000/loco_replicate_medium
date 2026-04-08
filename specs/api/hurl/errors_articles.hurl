@@ -67,7 +67,7 @@ token: jsonpath "$.user.token"
 
 # Create article empty title
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "",
@@ -81,7 +81,7 @@ jsonpath "$.errors.title[0]" == "can't be blank"
 
 # Create article empty description
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Err Desc {{uid}}",
@@ -95,7 +95,7 @@ jsonpath "$.errors.description[0]" == "can't be blank"
 
 # Create article empty body
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Err Body {{uid}}",
@@ -109,7 +109,7 @@ jsonpath "$.errors.body[0]" == "can't be blank"
 
 # Duplicate titles are allowed (each gets a unique slug)
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Dup Title {{uid}}",
@@ -122,7 +122,7 @@ HTTP 201
 slug1: jsonpath "$.article.slug"
 
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Dup Title {{uid}}",
@@ -138,7 +138,7 @@ jsonpath "$.article.slug" != {{slug1}}
 
 # Update unknown slug
 PUT {{host}}/api/articles/unknown-slug-{{uid}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "body": "test"
@@ -150,21 +150,21 @@ jsonpath "$.errors.article[0]" == "not found"
 
 # Favorite unknown slug
 POST {{host}}/api/articles/unknown-slug-{{uid}}/favorite
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 404
 [Asserts]
 jsonpath "$.errors.article[0]" == "not found"
 
 # Unfavorite unknown slug
 DELETE {{host}}/api/articles/unknown-slug-{{uid}}/favorite
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 404
 [Asserts]
 jsonpath "$.errors.article[0]" == "not found"
 
 # Update unknown slug
 PUT {{host}}/api/articles/unknown-slug-{{uid}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "body": "test"
@@ -176,16 +176,16 @@ jsonpath "$.errors.article[0]" == "not found"
 
 # Delete unknown slug
 DELETE {{host}}/api/articles/unknown-slug-{{uid}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 404
 [Asserts]
 jsonpath "$.errors.article[0]" == "not found"
 
 # Cleanup
 DELETE {{host}}/api/articles/{{slug1}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204
 
 DELETE {{host}}/api/articles/{{slug2}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204

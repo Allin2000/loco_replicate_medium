@@ -29,7 +29,7 @@ HTTP 201
 token: jsonpath "$.user.token"
 
 POST {{host}}/api/articles
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "article": {
     "title": "Err Comment Art {{uid}}",
@@ -43,7 +43,7 @@ slug: jsonpath "$.article.slug"
 
 # Post comment empty body
 POST {{host}}/api/articles/{{slug}}/comments
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "comment": {
     "body": ""
@@ -55,7 +55,7 @@ jsonpath "$.errors.body[0]" == "can't be blank"
 
 # Post comment on unknown article
 POST {{host}}/api/articles/unknown-slug-{{uid}}/comments
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 {
   "comment": {
     "body": "orphan"
@@ -73,19 +73,19 @@ jsonpath "$.errors.article[0]" == "not found"
 
 # Delete comment on unknown article
 DELETE {{host}}/api/articles/unknown-slug-{{uid}}/comments/99999
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 404
 [Asserts]
 jsonpath "$.errors.article[0]" == "not found"
 
 # Delete non-existent comment on existing article
 DELETE {{host}}/api/articles/{{slug}}/comments/99999
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 404
 [Asserts]
 jsonpath "$.errors.comment[0]" == "not found"
 
 # Cleanup
 DELETE {{host}}/api/articles/{{slug}}
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 204

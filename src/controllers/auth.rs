@@ -1,4 +1,12 @@
+// controllers/auth.rs
+
+// controllers/auth.rs
+
 use crate::{
+    dto::auth::{
+        ForgotRequest, LoginRequest, MagicLinkRequest, RegisterRequest,
+        ResendVerificationRequest, ResetRequest, UserEnvelope,
+    },
     mailers::auth::AuthMailer,
     models::{
         _entities::users,
@@ -45,34 +53,23 @@ fn get_allow_email_domain_re() -> &'static Regex {
     })
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ForgotParams {
-    pub email: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ResetParams {
-    pub token: String,
-    pub password: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct MagicLinkParams {
-    pub email: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ResendVerificationParams {
-    pub email: String,
-}
-
 /// Register function creates a new user with the given parameters and sends a
-/// welcome email to the user
+/// welcome email to the user.
+///
+/// Expects: `POST /api/users`
+/// Body: `{ "user": { "username": "...", "email": "...", "password": "..." } }`
 #[debug_handler]
 async fn register(
     State(ctx): State<AppContext>,
-    Json(params): Json<RegisterParams>,
+    Json(envelope): Json<UserEnvelope<RegisterRequest>>,
 ) -> Result<Response> {
+    let dto = envelope.user;
+    let params = RegisterParams {
+        email: dto.email,
+        password: dto.password,
+        name: dto.username,
+    };
+
     let res = users::Model::create_with_password(&ctx.db, &params).await;
 
     let user = match res {
@@ -123,18 +120,14 @@ async fn verify(State(ctx): State<AppContext>, Path(token): Path<String>) -> Res
     format::json(())
 }
 
-/// In case the user forgot his password  this endpoints generate a forgot token
-/// and send email to the user. In case the email not found in our DB, we are
-/// returning a valid request for for security reasons (not exposing users DB
-/// list).
+/// In case the user forgot his password this endpoint generates a forgot token
+/// and sends email to the user.
 #[debug_handler]
 async fn forgot(
     State(ctx): State<AppContext>,
-    Json(params): Json<ForgotParams>,
+    Json(params): Json<ForgotRequest>,
 ) -> Result<Response> {
     let Ok(user) = users::Model::find_by_email(&ctx.db, &params.email).await else {
-        // we don't want to expose our users email. if the email is invalid we still
-        // returning success to the caller
         return format::json(());
     };
 
@@ -148,14 +141,14 @@ async fn forgot(
     format::json(())
 }
 
-/// reset user password by the given parameters
+/// Reset user password by the given parameters.
 #[debug_handler]
-async fn reset(State(ctx): State<AppContext>, Json(params): Json<ResetParams>) -> Result<Response> {
+async fn reset(
+    State(ctx): State<AppContext>,
+    Json(params): Json<ResetRequest>,
+) -> Result<Response> {
     let Ok(user) = users::Model::find_by_reset_token(&ctx.db, &params.token).await else {
-        // we don't want to expose our users email. if the email is invalid we still
-        // returning success to the caller
         tracing::info!("reset token not found");
-
         return format::json(());
     };
     user.into_active_model()
@@ -165,9 +158,21 @@ async fn reset(State(ctx): State<AppContext>, Json(params): Json<ResetParams>) -
     format::json(())
 }
 
-/// Creates a user login and returns a token
+/// Creates a user login and returns a token.
+///
+/// Expects: `POST /api/users/login`
+/// Body: `{ "user": { "email": "...", "password": "..." } }`
 #[debug_handler]
-async fn login(State(ctx): State<AppContext>, Json(params): Json<LoginParams>) -> Result<Response> {
+async fn login(
+    State(ctx): State<AppContext>,
+    Json(envelope): Json<UserEnvelope<LoginRequest>>,
+) -> Result<Response> {
+    let dto = envelope.user;
+    let params = LoginParams {
+        email: dto.email,
+        password: dto.password,
+    };
+
     let Ok(user) = users::Model::find_by_email(&ctx.db, &params.email).await else {
         tracing::debug!(
             email = params.email,
@@ -177,13 +182,11 @@ async fn login(State(ctx): State<AppContext>, Json(params): Json<LoginParams>) -
     };
 
     let valid = user.verify_password(&params.password);
-
     if !valid {
         return unauthorized("unauthorized!");
     }
 
     let jwt_secret = ctx.config.get_jwt_config()?;
-
     let token = user
         .generate_jwt(&jwt_secret.secret, jwt_secret.expiration)
         .or_else(|_| unauthorized("unauthorized!"))?;
@@ -202,23 +205,10 @@ async fn current(auth: auth::JWT, State(ctx): State<AppContext>) -> Result<Respo
     format::json(make_user_response(&user, token))
 }
 
-/// Magic link authentication provides a secure and passwordless way to log in to the application.
-///
-/// # Flow
-/// 1. **Request a Magic Link**:
-///    A registered user sends a POST request to `/magic-link` with their email.
-///    If the email exists, a short-lived, one-time-use token is generated and sent to the user's email.
-///    For security and to avoid exposing whether an email exists, the response always returns 200, even if the email is invalid.
-///
-/// 2. **Click the Magic Link**:
-///    The user clicks the link (/magic-link/{token}), which validates the token and its expiration.
-///    If valid, the server generates a JWT and responds with a [`LoginResponse`].
-///    If invalid or expired, an unauthorized response is returned.
-///
-/// This flow enhances security by avoiding traditional passwords and providing a seamless login experience.
+/// Magic link authentication — passwordless login flow.
 async fn magic_link(
     State(ctx): State<AppContext>,
-    Json(params): Json<MagicLinkParams>,
+    Json(params): Json<MagicLinkRequest>,
 ) -> Result<Response> {
     let email_regex = get_allow_email_domain_re();
     if !email_regex.is_match(&params.email) {
@@ -230,8 +220,6 @@ async fn magic_link(
     }
 
     let Ok(user) = users::Model::find_by_email(&ctx.db, &params.email).await else {
-        // we don't want to expose our users email. if the email is invalid we still
-        // returning success to the caller
         tracing::debug!(email = params.email, "user not found by email");
         return format::empty_json();
     };
@@ -248,15 +236,11 @@ async fn magic_link_verify(
     State(ctx): State<AppContext>,
 ) -> Result<Response> {
     let Ok(user) = users::Model::find_by_magic_token(&ctx.db, &token).await else {
-        // we don't want to expose our users email. if the email is invalid we still
-        // returning success to the caller
         return unauthorized("unauthorized!");
     };
 
     let user = user.into_active_model().clear_magic_link(&ctx.db).await?;
-
     let jwt_secret = ctx.config.get_jwt_config()?;
-
     let token = user
         .generate_jwt(&jwt_secret.secret, jwt_secret.expiration)
         .or_else(|_| unauthorized("unauthorized!"))?;
@@ -267,7 +251,7 @@ async fn magic_link_verify(
 #[debug_handler]
 async fn resend_verification_email(
     State(ctx): State<AppContext>,
-    Json(params): Json<ResendVerificationParams>,
+    Json(params): Json<ResendVerificationRequest>,
 ) -> Result<Response> {
     let Ok(user) = users::Model::find_by_email(&ctx.db, &params.email).await else {
         tracing::info!(
@@ -298,20 +282,17 @@ async fn resend_verification_email(
 
 pub fn routes() -> Routes {
     Routes::new()
-        .prefix("/api/auth")
-        .add("/register", post(register))
-        .add("/verify/{token}", get(verify))
-        .add("/login", post(login))
-        .add("/forgot", post(forgot))
-        .add("/reset", post(reset))
-        .add("/current", get(current))
-        .add("/magic-link", post(magic_link))
-        .add("/magic-link/{token}", get(magic_link_verify))
-        .add("/resend-verification-mail", post(resend_verification_email))
-        .merge(
-            Routes::new()
-                .prefix("/api")
-                .add("/users", post(register))
-                .add("/users/login", post(login)),
+        // Registration and login use plural `/api/users` per RealWorld spec
+        .add("/api/users", post(register))
+        .add("/api/users/login", post(login))
+        // Everything else remains under /api/user (singular)
+        .add("/api/user/verify/{token}", get(verify))
+        .add("/api/user/forgot", post(forgot))
+        .add("/api/user/reset", post(reset))
+        .add("/api/user/magic-link", post(magic_link))
+        .add("/api/user/magic-link/{token}", get(magic_link_verify))
+        .add(
+            "/api/user/resend-verification-mail",
+            post(resend_verification_email),
         )
 }

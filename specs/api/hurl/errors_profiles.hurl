@@ -31,14 +31,14 @@ token: jsonpath "$.user.token"
 
 # Follow unknown user (authed)
 POST {{host}}/api/profiles/unknown-user-{{uid}}/follow
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 404
 [Asserts]
 jsonpath "$.errors.profile[0]" == "not found"
 
 # Unfollow unknown user (authed)
 DELETE {{host}}/api/profiles/unknown-user-{{uid}}/follow
-Authorization: Token {{token}}
+Authorization: Bearer {{token}}
 HTTP 404
 [Asserts]
 jsonpath "$.errors.profile[0]" == "not found"
