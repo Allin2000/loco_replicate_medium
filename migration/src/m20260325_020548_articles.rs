@@ -16,8 +16,6 @@ impl MigrationTrait for Migration {
             ("title", ColType::String),
             ("description", ColType::TextNull),
             ("body", ColType::Text),
-            ("created_at", ColType::TimestampWithTimeZone),
-            ("updated_at", ColType::TimestampWithTimeZoneNull),
             ],
             &[
             ("user", "author_id"),

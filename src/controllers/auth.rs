@@ -1,7 +1,5 @@
 // controllers/auth.rs
 
-// controllers/auth.rs
-
 use crate::{
     dto::auth::{
         ForgotRequest, LoginRequest, MagicLinkRequest, RegisterRequest,
